@@ -4,16 +4,21 @@ console.log('获取本机使用nginx所监听的所有端口列表');
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');  
-var Table = require('cli-table');
+const os = require('os');
+const spawn = require('child_process').spawnSync;
 
-const dir = '/usr/local/etc/nginx/servers/';
+const Table = require('cli-table');
+const axios = require('axios');
+
+const DIR = '/usr/local/etc/nginx/servers/';
+const BRANCH1 = 'http://bm.f2e.net.cn/api/branch/getBranchs?type=1';
+const BRANCH2 = 'http://bm.f2e.net.cn/api/branch/getBranchs?type=2';
+const BRANCH3 = 'http://bm.f2e.net.cn/api/branch/getBranchs?type=3';
 
 const err = err => console.error(err);
 const log = msg => console.log(msg);
 
 let IPv4;  
-hostName=os.hostname();  
 for(var i=0;i<os.networkInterfaces().en0.length;i++){  
     if(os.networkInterfaces().en0[i].family=='IPv4'){  
         IPv4=os.networkInterfaces().en0[i].address;  
@@ -35,26 +40,77 @@ const  readdir = (dir, callback) => {
     }
 }
 
+const tableHead = [
+    'port', 
+    'project directory', 
+    'config directory',
+    'svn',
+    'req',
+    'status',
+    'name'
+];
 const table = new Table({
-head: ['port', 'project directory', 'config directory'],
+head: tableHead,
 chars: { 'top': '═' , 'top-mid': '╤' , 'top-left': '╔' , 'top-right': '╗'
         , 'bottom': '═' , 'bottom-mid': '╧' , 'bottom-left': '╚' , 'bottom-right': '╝'
         , 'left': '║' , 'left-mid': '╟' , 'mid': '─' , 'mid-mid': '┼'
         , 'right': '║' , 'right-mid': '╢' , 'middle': '│' }
 });
 
-const makeTable = (listen, dir, file) => {
-    table.push([listen, dir, file]);
+const makeTable = (...args) => {
+    table.push(args);
 }
 
 
-readdir(dir, file => {
-    const content = fs.readFileSync(file, 'utf-8');
-    const listen = content.match(/listen\s*(\d+)/)[1];
-    const dir = content.match(/root\s*([a-zA-Z0-9\/\.]+)/)[1];
-    makeTable(`http://${IPv4}:${listen}`, dir, file);
-});
-console.log(table.toString());
+const fire = async _ => {
+    const branch1 = await axios.get(BRANCH1);
+    const branch2 = await axios.get(BRANCH2);
+    const branch3 = await axios.get(BRANCH3);
+    const branch = [...branch1.data.data, ...branch2.data.data, ...branch3.data.data].reduce((result, item) => {
+        if(typeof item.branch === 'string'){
+            result[item.branch] = {
+                id: item.id,
+                status: item.status
+            }
+        }else if(typeof item.branchhistory === 'string'){
+            result[item.branchhistory] = {
+                id: item.id,
+                creatorName: item.creatorName,
+                busiStatusName: item.busiStatusName,
+                status: item.status,
+                req: item.reqBranchRelations.map(r => ({req: r.req.req, memo: r.req.memo}))
+            }
+        }
+        return result;
+    }, {});
+
+    await readdir(DIR, file => {
+        const content = fs.readFileSync(file, 'utf-8');
+        const listen = content.match(/listen\s*(\d+)/)[1];
+        const dir = content.match(/root\s*([a-zA-Z0-9\/\.]+)/)[1];
+        const svninfo = spawn(`svn info`,[],{cwd:dir , encoding:'utf-8', shell:true}).output[1];
+        const svnURL = svninfo.match(/\nURL:\s+([^\n]+)/)[1];
+        const reg = new RegExp('^'+DIR,'i');
+        const branchinfo = Object.assign({}, branch[svnURL]);
+        const req = branchinfo.req && branchinfo.req.map(r => r.req) || '';
+        const status = branchinfo.status || '0';
+        const name = branchinfo.creatorName || '';
+        makeTable(
+            `http://${IPv4}:${listen}`, 
+            dir, 
+            file.replace(reg,''),
+            svnURL,
+            req,
+            status,
+            name,
+        );
+    });
+    log(`本机IP：http://${IPv4}`);
+    log(`配置文件根目录：${DIR}`);
+    log(table.toString());
+}
+
+fire();
 
 
 
