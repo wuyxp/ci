@@ -47,7 +47,8 @@ const tableHead = [
     'svn',
     'req',
     'status',
-    'name'
+    'name',
+    'memo',
 ];
 const table = new Table({
 head: tableHead,
@@ -93,6 +94,7 @@ const fire = async _ => {
         const reg = new RegExp('^'+DIR,'i');
         const branchinfo = Object.assign({}, branch[svnURL]);
         const req = branchinfo.req && branchinfo.req.map(r => r.req) || '';
+        const memo = branchinfo.req && branchinfo.req.map(r => r.memo) || '';
         const status = branchinfo.status || '0';
         const name = branchinfo.creatorName || '';
         makeTable(
@@ -103,6 +105,7 @@ const fire = async _ => {
             req,
             status,
             name,
+            memo,
         );
     });
     log(`本机IP：http://${IPv4}`);
