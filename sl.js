@@ -88,7 +88,7 @@ const fire = async _ => {
     await readdir(DIR, file => {
         const content = fs.readFileSync(file, 'utf-8');
         const listen = content.match(/listen\s*(\d+)/)[1];
-        const dir = content.match(/root\s*([a-zA-Z0-9\/\.]+)/)[1];
+        const dir = content.match(/root\s*([_a-zA-Z0-9\/\.]+)/)[1];
         const svninfo = spawn(`svn info`,[],{cwd:dir , encoding:'utf-8', shell:true}).output[1];
         const svnURL = svninfo.match(/\nURL:\s+([^\n]+)/)[1];
         const reg = new RegExp('^'+DIR,'i');
